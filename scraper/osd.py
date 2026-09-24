@@ -91,7 +91,8 @@ def energa():
 
 
 # ---------------- Enea Operator ----------------
-ENEA = "https://wylaczenia.operator.enea.pl/index.php"
+ENEA_BASE = "https://wylaczenia.operator.enea.pl/"
+ENEA = ENEA_BASE + "index.php"
 ENEA_WOJ = {"Poznań": "wielkopolskie", "Bydgoszcz": "kujawsko-pomorskie", "Szczecin": "zachodniopomorskie",
             "Zielona Góra": "lubuskie", "Gorzów Wlkp.": "lubuskie"}
 RE_PLAN = re.compile(r"(\d{1,2})\s+(\w+)\s+(\d{4})\s+r\.\s+w\s+godz\.\s+(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})")
@@ -135,24 +136,23 @@ def enea():
     ENEA_DEBUG["regions"] = regions
     for region in regions:
         woj = ENEA_WOJ.get(region)
-        for page, typ in (("awarie", "awaria"), ("", "planowane")):
-            params = {"page": page, "oddzial": region} if page else {"oddzial": region}
-            resp = get(ENEA, params=params, headers=BROWSER)
-            soup = BeautifulSoup(resp.text, "html.parser")
-            blocks = soup.select("div.unpl.block.info")
-            dbg = {"blocks": len(blocks)}
-            if not page:
-                txt = resp.text
-                i = txt.find("2026 r.")
-                dbg["len"] = len(txt)
-                dbg["around"] = txt[max(0, i - 900): i + 300] if i >= 0 else txt[txt.find("<h1"): txt.find("<h1") + 1500]
-                hits = [t for t in soup.find_all(string=re.compile(r"^\s*Obszar\s"))][:3]
-                dbg["obszar"] = [[(p.name, " ".join(p.get("class") or [])) for p in [h.parent] + list(h.parent.parents)[:4]] for h in hits]
-                dbg["n_obszar"] = len(soup.find_all(string=re.compile(r"^\s*Obszar\s")))
-                if hits:
-                    blk = list(hits[0].parent.parents)[1]
-                    dbg["sample"] = str(blk)[:1200]
-            ENEA_DEBUG[f"{region}/{page or 'planowane'}"] = dbg
+        day = now_local().date()
+        for page, typ in (("awarie", "awaria"), ("unpl", "planowane")):
+            if page == "awarie":
+                resp = get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER)
+                blocks = BeautifulSoup(resp.text, "html.parser").select("div.unpl.block.info")
+            else:
+                # lista planowanych: wersja do druku, osobno dla dziś i jutra (fallback: wyszukiwarka AJAX)
+                blocks = []
+                for d in (day, day + dt.timedelta(days=1)):
+                    r1 = get(ENEA_BASE + "page_print.php", params={"page": "unpl", "oddzial": region, "unpl_date": d.isoformat()}, headers=BROWSER)
+                    blocks += BeautifulSoup(r1.text, "html.parser").select("div.unpl.block.info")
+                if not blocks:
+                    r2 = get(ENEA_BASE + "local/eneaosd_unpl/inc_ws_unplaged_search.php",
+                             params={"oddzial": region, "rejon": 0, "unpl_date": day.isoformat()}, headers=BROWSER)
+                    ENEA_DEBUG[f"{region}/ws"] = r2.text[:600]
+                    blocks = BeautifulSoup(r2.text, "html.parser").select("div.unpl.block.info")
+            ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks)}
             for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
                 desc = b.find("p", {"class": "description"}).get_text(" ", strip=True) if b.find("p", {"class": "description"}) else ""
