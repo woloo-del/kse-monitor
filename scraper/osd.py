@@ -139,7 +139,14 @@ def enea():
             resp = get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER)
             soup = BeautifulSoup(resp.text, "html.parser")
             blocks = soup.select("div.unpl.block.info")
-            ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks), "url": resp.url[:160]}
+            cls = {}
+            for d in soup.find_all(["div", "li", "article", "tr"]):
+                c = " ".join(d.get("class") or [])
+                if c:
+                    cls[c] = cls.get(c, 0) + 1
+            ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks), "len": len(resp.text),
+                                              "classes": sorted(cls.items(), key=lambda x: -x[1])[:12],
+                                              "first": blocks[0].get_text(" | ", strip=True)[:400] if blocks else ""}
             for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
                 desc = b.find("p", {"class": "description"}).get_text(" ", strip=True) if b.find("p", {"class": "description"}) else ""

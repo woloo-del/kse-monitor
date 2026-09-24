@@ -6,7 +6,21 @@ Użycie: python3 sync_prepare.py <katalog_wyjściowy>
 """
 import json, os, sys, urllib.request, datetime as dt
 
-RAW = "https://raw.githubusercontent.com/woloo-del/kse-monitor/data/out/"
+REPO = "woloo-del/kse-monitor"
+RAW = f"https://raw.githubusercontent.com/{REPO}/data/out/"
+
+
+def _resolve_raw():
+    """raw.githubusercontent.com cache'uje gałąź kilka minut – jeśli się da, bierzemy dokładny commit."""
+    global RAW
+    try:
+        req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/commits/data", headers={"Accept": "application/vnd.github.sha"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            sha = r.read().decode().strip()
+        if len(sha) == 40:
+            RAW = f"https://raw.githubusercontent.com/{REPO}/{sha}/out/"
+    except Exception:  # noqa: BLE001
+        pass
 SKIP = {"manifest.json", "cache_tauron.json", "status.json", "events.json"}
 MAX_EVENTS_BYTES = 600_000
 
@@ -18,6 +32,7 @@ def fetch(name):
 
 def main(out):
     os.makedirs(out, exist_ok=True)
+    _resolve_raw()
     man = fetch("manifest.json")
     plan = []
 

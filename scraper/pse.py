@@ -64,11 +64,12 @@ def reserve_probe(date):
     if not rows:
         return None, []
     fields = sorted(rows[0].keys())
-    cand = [f for f in fields if "rez" in f.lower() and "pon" in f.lower()] or [f for f in fields if "rez" in f.lower()]
+    pref = ["gen_surplus_avail_tso_above", "surplus_cap_avail_tso"]
+    cand = [f for f in pref if f in fields] or [f for f in fields if "rez" in f.lower()]
     if not cand:
         return None, fields
     f = cand[0]
-    tkey = next((k for k in ("dtime", "udtczas", "doba_godz") if k in rows[0]), None)
+    tkey = next((k for k in ("plan_dtime", "dtime", "udtczas") if k in rows[0]), None)
     return {"field": f, "t": [_end(str(r.get(tkey) or "")) for r in rows], "v": [_num(r.get(f)) for r in rows]}, fields
 
 
