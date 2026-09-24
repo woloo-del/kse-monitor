@@ -14,7 +14,7 @@ def _fetch(report, date, select=None):
         rows += data.get("value", [])
         url = data.get("nextLink") or data.get("@odata.nextLink")
         params = None
-    rows.sort(key=lambda r: r.get("dtime_utc") or r.get("dtime"))
+    rows.sort(key=lambda r: str(r.get("dtime_utc") or r.get("dtime") or r.get("udtczas") or ""))
     return rows
 
 
@@ -68,7 +68,8 @@ def reserve_probe(date):
     if not cand:
         return None, fields
     f = cand[0]
-    return {"field": f, "t": [_end(r.get("dtime") or "") for r in rows], "v": [_num(r.get(f)) for r in rows]}, fields
+    tkey = next((k for k in ("dtime", "udtczas", "doba_godz") if k in rows[0]), None)
+    return {"field": f, "t": [_end(str(r.get(tkey) or "")) for r in rows], "v": [_num(r.get(f)) for r in rows]}, fields
 
 
 def run(dates, status):

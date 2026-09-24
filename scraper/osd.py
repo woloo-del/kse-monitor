@@ -38,8 +38,15 @@ def _finish(ev, now):
     ev["active"] = bool((s is None or s <= now) and (e is None or e >= now))
     if ev.get("lat") is not None and not ev.get("woj"):
         ev["woj"] = geo.woj_of(ev["lat"], ev["lon"])
-    ev["desc"] = (ev.get("desc") or "")[:300]
+    ev["desc"] = (ev.get("desc") or "")[:240]
+    ev["place"] = (ev.get("place") or "")[:120]
     return ev
+
+
+def _short_place(text):
+    parts = [p.split(":")[0].strip() for p in (text or "").split(";") if p.strip()]
+    head = ", ".join(parts[:3])
+    return (head + (f" i {len(parts) - 3} innych" if len(parts) > 3 else ""))[:120]
 
 
 def _count_addr(text):
@@ -119,13 +126,21 @@ def _enea_geo(desc, title, woj):
     return None
 
 
+ENEA_DEBUG = {}
+
+
 def enea():
-    out = []
-    for region in _enea_regions():
+    out, seen = [], set()
+    regions = _enea_regions()
+    ENEA_DEBUG["regions"] = regions
+    for region in regions:
         woj = ENEA_WOJ.get(region)
         for page, typ in (("awarie", "awaria"), ("unpl", "planowane")):
-            soup = BeautifulSoup(get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER).text, "html.parser")
-            for i, b in enumerate(soup.select("div.unpl.block.info")):
+            resp = get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            blocks = soup.select("div.unpl.block.info")
+            ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks), "url": resp.url[:160]}
+            for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
                 desc = b.find("p", {"class": "description"}).get_text(" ", strip=True) if b.find("p", {"class": "description"}) else ""
                 when = b.find("p", {"class": "bold subtext"}).get_text(" ", strip=True) if b.find("p", {"class": "bold subtext"}) else ""
@@ -141,6 +156,12 @@ def enea():
                 elif mf:
                     d, mon, y, h, m = mf.groups()
                     e = dt.datetime(int(y), MONTHS.get(mon.lower(), 1), int(d), int(h), int(m), tzinfo=TZ)
+                key = hashlib.md5((title + desc + when).encode()).hexdigest()
+                if key in seen:
+                    continue
+                seen.add(key)
+                # typ wg formatu daty: przedział godzin = planowane, samo "do godziny" = awaria
+                typ = "planowane" if mp else ("awaria" if mf else typ)
                 g = _enea_geo(desc, title, woj)
                 ev = {"id": f"enea:{hashlib.md5((region + page + title + desc + when).encode()).hexdigest()[:12]}", "operator": "Enea Operator", "type": typ,
                       "place": re.sub(r"^Obszar\s+", "", title), "desc": desc, "region": region,
@@ -187,7 +208,7 @@ def pge():
             n = sum(len([x for x in (a.get("numbers") or "").split(",") if x.strip()]) or 1 for a in addrs) or None
             out.append({"id": f"pge:{it.get('id')}", "operator": "PGE Dystrybucja",
                         "type": "awaria" if it.get("type") == 1 else "planowane",
-                        "place": it.get("description") or t0.get("cityName") or it.get("regionName") or "", "desc": it.get("description") or "",
+                        "place": _short_place(it.get("description") or t0.get("cityName") or it.get("regionName") or ""), "desc": it.get("description") or "",
                         "region": it.get("regionName"), "_s": _local(it.get("startAt")), "_e": _local(it.get("stopAt")),
                         "lat": lat, "lon": lon, "approx": approx, "geo": "obszar" if pts else ("gmina" if approx else "miejscowosc" if lat else None),
                         "woj": (t0.get("voivodeshipName") or "").lower() or None, "scale": n, "scale_unit": "adresów"})
@@ -297,4 +318,5 @@ def run(status, heavy=True):
     status["osd"] = {"ok": ok_n > 0, "at": iso(now), "msg": f"{ok_n}/5 operatorów, {sum(1 for e in events if e['type']=='awaria')} awarii, "
                      f"{sum(1 for e in events if e['type']=='planowane')} wyłączeń planowanych (okno {HORIZON_H} h)"}
     status["osd_detail"] = per
+    status.setdefault("debug", {})["enea"] = ENEA_DEBUG
     return events
