@@ -100,6 +100,8 @@ RE_FAIL = re.compile(r"(\d{1,2})\s+(\w+)\s+(\d{4})\s+r\.\s+do\s+godziny\s+(\d{1,
 
 def _enea_regions():
     soup = BeautifulSoup(get(ENEA, params={"page": "awarie"}, headers=BROWSER).text, "html.parser")
+    ENEA_DEBUG["links"] = sorted({a.get("href") for a in soup.find_all("a") if a.get("href") and ("page=" in a.get("href") or "wylacz" in a.get("href").lower() or "plan" in a.get("href").lower())})[:40]
+    ENEA_DEBUG["forms"] = [{"action": f.get("action"), "inputs": [(i.get("name"), i.get("value")) for i in f.find_all(["input", "select"])][:10]} for f in soup.find_all("form")][:5]
     sel = soup.find("select", {"id": "oddzial"})
     vals = [o.get("value") for o in (sel.find_all("option") if sel else []) if o.get("value")]
     return vals or list(ENEA_WOJ)
