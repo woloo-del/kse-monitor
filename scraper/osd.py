@@ -183,8 +183,10 @@ RE_WS = re.compile(r"^(?P<areas>.+?),\s*(?P<date>\d{4}-\d{2}-\d{2})\s*:\s*(?P<ad
 def _enea_planned(region, woj, seen):
     """Planowane wyłączenia Enea: wyszukiwarka AJAX strony (JSON [{id, label}]); etykieta 'Gminy, RRRR-MM-DD: adresy'.
     Źródło nie podaje godzin – zdarzenie obejmuje całą dobę i jest tak opisane."""
-    data = get(ENEA_BASE + "local/eneaosd_unpl/inc_ws_unplaged_search.php", params={"oddzial": region, "rejon": 0},
-               headers={**BROWSER, "Accept": "application/json, text/javascript, */*"}, expect_json=True) or []
+    txt = get(ENEA_BASE + "local/eneaosd_unpl/inc_ws_unplaged_search.php", params={"oddzial": region, "rejon": 0},
+              headers={**BROWSER, "Accept": "application/json, text/javascript, */*"}).text
+    txt = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", txt)  # źródło zawiera niepoprawne ukośniki
+    data = json.loads(txt, strict=False) or []
     today = now_local().date()
     out = []
     for it in data:
