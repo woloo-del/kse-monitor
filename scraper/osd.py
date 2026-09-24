@@ -142,16 +142,8 @@ def enea():
                 resp = get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER)
                 blocks = BeautifulSoup(resp.text, "html.parser").select("div.unpl.block.info")
             else:
-                # lista planowanych: wersja do druku, osobno dla dziś i jutra (fallback: wyszukiwarka AJAX)
-                blocks = []
-                for d in (day, day + dt.timedelta(days=1)):
-                    r1 = get(ENEA_BASE + "page_print.php", params={"page": "unpl", "oddzial": region, "unpl_date": d.isoformat()}, headers=BROWSER)
-                    blocks += BeautifulSoup(r1.text, "html.parser").select("div.unpl.block.info")
-                if not blocks:
-                    r2 = get(ENEA_BASE + "local/eneaosd_unpl/inc_ws_unplaged_search.php",
-                             params={"oddzial": region, "rejon": 0, "unpl_date": day.isoformat()}, headers=BROWSER)
-                    ENEA_DEBUG[f"{region}/ws"] = r2.text[:600]
-                    blocks = BeautifulSoup(r2.text, "html.parser").select("div.unpl.block.info")
+                out += _enea_planned(region, woj, seen)
+                continue
             ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks)}
             for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
@@ -182,6 +174,41 @@ def enea():
                 if g:
                     ev.update({"lat": g[0], "lon": g[1], "woj": g[2] or woj, "approx": g[3] == "gmina", "geo": g[3]})
                 out.append(ev)
+    return out
+
+
+RE_WS = re.compile(r"^(?P<areas>.+?),\s*(?P<date>\d{4}-\d{2}-\d{2})\s*:\s*(?P<addr>.*)$", re.S)
+
+
+def _enea_planned(region, woj, seen):
+    """Planowane wyłączenia Enea: wyszukiwarka AJAX strony (JSON [{id, label}]); etykieta 'Gminy, RRRR-MM-DD: adresy'.
+    Źródło nie podaje godzin – zdarzenie obejmuje całą dobę i jest tak opisane."""
+    data = get(ENEA_BASE + "local/eneaosd_unpl/inc_ws_unplaged_search.php", params={"oddzial": region, "rejon": 0},
+               headers={**BROWSER, "Accept": "application/json, text/javascript, */*"}, expect_json=True) or []
+    today = now_local().date()
+    out = []
+    for it in data:
+        m = RE_WS.match((it.get("label") or "").strip())
+        if not m:
+            continue
+        d = dt.date.fromisoformat(m.group("date"))
+        if d < today or d > today + dt.timedelta(days=1):
+            continue
+        key = "ws" + str(it.get("id"))
+        if key in seen:
+            continue
+        seen.add(key)
+        areas, addr = m.group("areas").strip(), m.group("addr").strip()
+        first_loc = re.match(r"\s*([A-ZĄĆĘŁŃÓŚŹŻ][\wąćęłńóśźż\-]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][\wąćęłńóśźż\-]+)?)", addr)
+        gm = areas.split(",")[0].strip()
+        g = (geo.locality(first_loc.group(1), woj=woj, gmina=gm) if first_loc else None) or geo.gmina_centroid(gm, woj)
+        ev = {"id": f"enea:{it.get('id')}", "operator": "Enea Operator", "type": "planowane", "place": areas, "desc": addr + " (godziny: brak w źródle)",
+              "region": region, "_s": dt.datetime(d.year, d.month, d.day, tzinfo=TZ), "_e": dt.datetime(d.year, d.month, d.day, 23, 59, tzinfo=TZ),
+              "woj": woj, "scale": _count_addr(addr), "scale_unit": "adresów"}
+        if g:
+            ev.update({"lat": g[0], "lon": g[1], "woj": g[2] or woj, "approx": g[3] == "gmina", "geo": g[3]})
+        out.append(ev)
+    ENEA_DEBUG[f"{region}/ws"] = {"all": len(data), "window": len(out)}
     return out
 
 
