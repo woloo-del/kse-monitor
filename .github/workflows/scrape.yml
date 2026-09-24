@@ -51,3 +51,19 @@ jobs:
           git add .
           git -c user.name="kse-bot" -c user.email="kse-bot@users.noreply.github.com" commit -qm "dane $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
+
+      - name: Archiwum dzienne (gałąź archive, z historią)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git clone -q --depth 1 --branch archive "$URL" arch 2>/dev/null; then :; else
+            mkdir arch && cd arch && git init -q -b archive && git remote add origin "$URL" && cd ..
+          fi
+          python -m scraper.archive out arch
+          cd arch
+          git add -A
+          if ! git diff --cached --quiet; then
+            git -c user.name="kse-bot" -c user.email="kse-bot@users.noreply.github.com" commit -qm "archiwum $(date -u +%Y-%m-%d)"
+            git push -q origin archive
+          fi
