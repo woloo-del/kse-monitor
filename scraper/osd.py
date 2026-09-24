@@ -142,8 +142,7 @@ def enea():
                 resp = get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER)
                 blocks = BeautifulSoup(resp.text, "html.parser").select("div.unpl.block.info")
             else:
-                out += _enea_planned(region, woj, seen)
-                continue
+                continue  # planowane: jedna lista dla całego obszaru Enea, pobierana poniżej
             ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks)}
             for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
@@ -174,6 +173,7 @@ def enea():
                 if g:
                     ev.update({"lat": g[0], "lon": g[1], "woj": g[2] or woj, "approx": g[3] == "gmina", "geo": g[3]})
                 out.append(ev)
+    out += _enea_planned("wszystkie", None, seen)
     return out
 
 
@@ -203,12 +203,12 @@ def _enea_planned(region, woj, seen):
         areas, addr = m.group("areas").strip(), m.group("addr").strip()
         first_loc = re.match(r"\s*([A-ZĄĆĘŁŃÓŚŹŻ][\wąćęłńóśźż\-]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][\wąćęłńóśźż\-]+)?)", addr)
         gm = areas.split(",")[0].strip()
-        g = (geo.locality(first_loc.group(1), woj=woj, gmina=gm) if first_loc else None) or geo.gmina_centroid(gm, woj)
+        g = (geo.locality(first_loc.group(1), gmina=gm) if first_loc else None) or geo.gmina_centroid(gm)
         ev = {"id": f"enea:{it.get('id')}", "operator": "Enea Operator", "type": "planowane", "place": areas, "desc": addr + " (godziny: brak w źródle)",
               "region": region, "_s": dt.datetime(d.year, d.month, d.day, tzinfo=TZ), "_e": dt.datetime(d.year, d.month, d.day, 23, 59, tzinfo=TZ),
               "woj": woj, "scale": _count_addr(addr), "scale_unit": "adresów"}
         if g:
-            ev.update({"lat": g[0], "lon": g[1], "woj": g[2] or woj, "approx": g[3] == "gmina", "geo": g[3]})
+            ev.update({"lat": g[0], "lon": g[1], "woj": None, "approx": g[3] == "gmina", "geo": g[3]})
         out.append(ev)
     ENEA_DEBUG[f"{region}/ws"] = {"all": len(data), "window": len(out)}
     return out
