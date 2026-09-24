@@ -1,0 +1,53 @@
+name: scrape
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Poprzedni odczyt (gałąź data)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: data
+          path: prev
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Pobierz dane
+        env:
+          ENTSOE_TOKEN: ${{ secrets.ENTSOE_TOKEN }}
+          OUT_DIR: out
+          PREV_DIR: prev/out
+          HEAVY: ${{ github.event_name == 'workflow_dispatch' && '1' || 'auto' }}
+        run: python -m scraper.run
+
+      - name: Opublikuj gałąź data (jeden commit, bez historii)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir pub && cp -r out pub/out
+          cd pub
+          git init -q -b data
+          git add .
+          git -c user.name="kse-bot" -c user.email="kse-bot@users.noreply.github.com" commit -qm "dane $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
