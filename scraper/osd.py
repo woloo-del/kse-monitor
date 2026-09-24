@@ -140,7 +140,15 @@ def enea():
             resp = get(ENEA, params=params, headers=BROWSER)
             soup = BeautifulSoup(resp.text, "html.parser")
             blocks = soup.select("div.unpl.block.info")
-            ENEA_DEBUG[f"{region}/{page or 'planowane'}"] = {"blocks": len(blocks), "h1": (soup.find("h1").get_text(strip=True)[:60] if soup.find("h1") else "")}
+            dbg = {"blocks": len(blocks)}
+            if not page:
+                hits = [t for t in soup.find_all(string=re.compile(r"^\s*Obszar\s"))][:3]
+                dbg["obszar"] = [[(p.name, " ".join(p.get("class") or [])) for p in [h.parent] + list(h.parent.parents)[:4]] for h in hits]
+                dbg["n_obszar"] = len(soup.find_all(string=re.compile(r"^\s*Obszar\s")))
+                if hits:
+                    blk = list(hits[0].parent.parents)[1]
+                    dbg["sample"] = str(blk)[:1200]
+            ENEA_DEBUG[f"{region}/{page or 'planowane'}"] = dbg
             for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
                 desc = b.find("p", {"class": "description"}).get_text(" ", strip=True) if b.find("p", {"class": "description"}) else ""
