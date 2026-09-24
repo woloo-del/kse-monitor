@@ -49,7 +49,7 @@ def entsoe_events(units, now):
         ev = {"id": f"entsoe:{u.get('mrid')}:{u['name']}", "operator": "PSE" if u["kind"] == "przesyl" else "ENTSO-E",
               "type": u["kind"], "place": u["name"] or (u.get("loc") or "—"),
               "desc": f"{u['psr_pl'] or ''} · moc nominalna {u['nominal'] or '—'} MW · dostępna {u['available'] if u['available'] is not None else '—'} MW · "
-                      (u["reason"] if u.get("reason") else ("planowa" if u["planned"] else "nieplanowa")),
+                      + (u["reason"] if u.get("reason") else ("planowa" if u["planned"] else "nieplanowa")),
               "start": iso(s), "end": iso(e), "active": bool((s is None or s <= now) and (e is None or e >= now)),
               "planned": u["planned"], "scale": u["mw"], "scale_unit": "MW", "mw": u["mw"]}
         if g:
