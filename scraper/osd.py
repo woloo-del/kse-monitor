@@ -100,8 +100,6 @@ RE_FAIL = re.compile(r"(\d{1,2})\s+(\w+)\s+(\d{4})\s+r\.\s+do\s+godziny\s+(\d{1,
 
 def _enea_regions():
     soup = BeautifulSoup(get(ENEA, params={"page": "awarie"}, headers=BROWSER).text, "html.parser")
-    ENEA_DEBUG["links"] = sorted({a.get("href") for a in soup.find_all("a") if a.get("href") and ("page=" in a.get("href") or "wylacz" in a.get("href").lower() or "plan" in a.get("href").lower())})[:40]
-    ENEA_DEBUG["forms"] = [{"action": f.get("action"), "inputs": [(i.get("name"), i.get("value")) for i in f.find_all(["input", "select"])][:10]} for f in soup.find_all("form")][:5]
     sel = soup.find("select", {"id": "oddzial"})
     vals = [o.get("value") for o in (sel.find_all("option") if sel else []) if o.get("value")]
     return vals or list(ENEA_WOJ)
@@ -137,18 +135,12 @@ def enea():
     ENEA_DEBUG["regions"] = regions
     for region in regions:
         woj = ENEA_WOJ.get(region)
-        for page, typ in (("awarie", "awaria"), ("unpl", "planowane")):
-            resp = get(ENEA, params={"page": page, "oddzial": region}, headers=BROWSER)
+        for page, typ in (("awarie", "awaria"), ("", "planowane")):
+            params = {"page": page, "oddzial": region} if page else {"oddzial": region}
+            resp = get(ENEA, params=params, headers=BROWSER)
             soup = BeautifulSoup(resp.text, "html.parser")
             blocks = soup.select("div.unpl.block.info")
-            cls = {}
-            for d in soup.find_all(["div", "li", "article", "tr"]):
-                c = " ".join(d.get("class") or [])
-                if c:
-                    cls[c] = cls.get(c, 0) + 1
-            ENEA_DEBUG[f"{region}/{page}"] = {"blocks": len(blocks), "len": len(resp.text),
-                                              "classes": sorted(cls.items(), key=lambda x: -x[1])[:12],
-                                              "first": blocks[0].get_text(" | ", strip=True)[:400] if blocks else ""}
+            ENEA_DEBUG[f"{region}/{page or 'planowane'}"] = {"blocks": len(blocks), "h1": (soup.find("h1").get_text(strip=True)[:60] if soup.find("h1") else "")}
             for i, b in enumerate(blocks):
                 title = (b.find("h4", {"class": "title_"}) or {}).get_text(" ", strip=True) if b.find("h4", {"class": "title_"}) else ""
                 desc = b.find("p", {"class": "description"}).get_text(" ", strip=True) if b.find("p", {"class": "description"}) else ""
