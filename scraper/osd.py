@@ -142,6 +142,10 @@ def enea():
             blocks = soup.select("div.unpl.block.info")
             dbg = {"blocks": len(blocks)}
             if not page:
+                txt = resp.text
+                i = txt.find("2026 r.")
+                dbg["len"] = len(txt)
+                dbg["around"] = txt[max(0, i - 900): i + 300] if i >= 0 else txt[txt.find("<h1"): txt.find("<h1") + 1500]
                 hits = [t for t in soup.find_all(string=re.compile(r"^\s*Obszar\s"))][:3]
                 dbg["obszar"] = [[(p.name, " ".join(p.get("class") or [])) for p in [h.parent] + list(h.parent.parents)[:4]] for h in hits]
                 dbg["n_obszar"] = len(soup.find_all(string=re.compile(r"^\s*Obszar\s")))
