@@ -44,7 +44,8 @@ jobs:
           OUT_DIR: out
           PREV_DIR: prev/out
           HEAVY: ${{ github.event_name == 'workflow_dispatch' && '1' || 'auto' }}
-          PROBE: ${{ github.event.inputs.probe || '0' }}
+          PROBE: ${{ github.event.inputs.probe != '' && github.event.inputs.probe != '0' && '1' || '0' }}
+          PROBE_STAGE: ${{ github.event.inputs.probe }}
         run: python -m scraper.run
 
       - name: Opublikuj gałąź data (jeden commit, bez historii)

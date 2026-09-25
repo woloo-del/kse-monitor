@@ -15,7 +15,35 @@ def _w(name, text):
         f.write(text)
 
 
+def run2():
+    """Druga runda: mapa endpointów (PDF), $metadata, raporty bez filtra daty."""
+    out = {}
+    for url, name in (("https://api.raporty.pse.pl/EndpointsMap.pdf", "EndpointsMap.pdf"), ("https://api.raporty.pse.pl/api/$metadata", "metadata.xml")):
+        try:
+            b = get(url, timeout=60).content
+            p = os.path.join(OUT, "probe"); os.makedirs(p, exist_ok=True)
+            open(os.path.join(p, name), "wb").write(b)
+            out[name] = len(b)
+        except Exception as e:  # noqa: BLE001
+            out[name] = str(e)[:200]
+    for rep in ["crb-rozl", "eb-rozl", "en-rozl", "cor-rozl", "cen-rozl", "ceb-rozl", "ckoeb-rozl", "ceb-pp", "cen", "sk", "sk-d",
+                "gen-jw", "przeplywy-mocy", "his-bil-mocy", "ro-rozl", "poze-redoze"]:
+        try:
+            r = get(PSE + rep, params={"$first": "3", "$orderby": "dtime desc"}, expect_json=True, tries=1, timeout=40)
+            rows = r.get("value", [])
+            out[rep] = {"n": len(rows), "sample": rows[:2]}
+        except Exception as e:  # noqa: BLE001
+            try:
+                r = get(PSE + rep, params={"$first": "3"}, expect_json=True, tries=1, timeout=40)
+                out[rep] = {"n": len(r.get("value", [])), "sample": r.get("value", [])[:2], "note": "bez orderby"}
+            except Exception as e2:  # noqa: BLE001
+                out[rep] = {"err": str(e2)[:160]}
+    _w("pse2.json", json.dumps(out, ensure_ascii=False, indent=1))
+
+
 def run():
+    if os.environ.get("PROBE_STAGE") == "2":
+        return run2()
     d = now_local().date()
     summary = {}
     for rep in REPORTS:
