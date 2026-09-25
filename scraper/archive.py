@@ -18,10 +18,11 @@ def main(out_dir, arch_dir):
     os.makedirs(target, exist_ok=True)
     copied = []
     for name in sorted(os.listdir(out_dir)):
-        if name.endswith(f"_{d1}.json"):  # rce_, wlk_, gen_, load_ poprzedniej doby
+        if f"_{d1}" in name and name.endswith(".json"):  # wszystkie pliki poprzedniej doby (rce_, wlk_, gen_, load_, rb_, curves_…)
             shutil.copy2(os.path.join(out_dir, name), os.path.join(target, name))
             copied.append(name)
-    for name, new in (("events.json", f"zdarzenia_{d1}_stan_{now:%H%M}.json"), ("nbp.json", "nbp.json"), ("status.json", "status.json")):
+    for name, new in (("events.json", f"zdarzenia_{d1}_stan_{now:%H%M}.json"), ("nbp.json", "nbp.json"), ("status.json", "status.json"),
+                      ("stats_daily.json", "statystyki_dzienne.json")):
         p = os.path.join(out_dir, name)
         if os.path.exists(p):
             shutil.copy2(p, os.path.join(target, new))

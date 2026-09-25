@@ -2,7 +2,7 @@
 Wynik trafia do katalogu out/ (gałąź `data`), skąd zadanie Claude przepisuje go do dashboardu."""
 import os, re, sys, logging, datetime as dt
 from .common import get, write, read_prev, now_local, iso, today_dates, carry
-from . import pse, entsoe, osd, geo
+from . import pse, entsoe, osd, geo, market
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -88,6 +88,7 @@ def main():
     except Exception as e:  # noqa: BLE001
         units = []
         status["entsoe"] = {"ok": False, "at": iso(now), "msg": str(e)[:150]}
+    market.run(dates, status, heavy)
     events = osd.run(status, heavy=heavy)
     if status.get("entsoe", {}).get("ok") or units:
         events += entsoe_events(units, now.astimezone(dt.timezone.utc))

@@ -5,7 +5,7 @@ API = "https://api.raporty.pse.pl/api/"
 
 
 def _fetch(report, date, select=None):
-    params = {"$filter": f"business_date eq '{date}'", "$first": "200"}
+    params = {"$filter": f"business_date eq '{date}'", "$first": "2000"}
     if select:
         params["$select"] = select
     rows, url = [], API + report
