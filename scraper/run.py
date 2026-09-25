@@ -75,6 +75,12 @@ def main():
     heavy = os.environ.get("HEAVY", "auto")
     heavy = (now.minute // 15) % 2 == 0 if heavy == "auto" else heavy == "1"
 
+    if os.environ.get("PROBE") == "1":
+        from . import probe
+        try:
+            probe.run()
+        except Exception as e:  # noqa: BLE001
+            status["probe_error"] = str(e)[:300]
     pse.run(dates, status)
     nbp(status)
     try:
