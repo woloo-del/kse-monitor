@@ -73,7 +73,7 @@ def run_curves(dates, status):
 # ---------------------------------------------------------------- 2. rynek bilansujący
 RB_FIELDS = {
     "crb-rozl": ["cen_cost", "ckoeb_cost", "ceb_pp_cost", "ceb_sr_cost", "ceb_sr_afrrd_cost", "ceb_sr_afrrg_cost"],
-    "crb-prog": ["cen_fcst", "ckoeb_fcst", "ceb_sr_fcst"],
+    "price-fcst": ["cen_fcst", "ckoeb_fcst", "ceb_sr_fcst", "cor_fcst", "imb_energy"],
     "eb-rozl": ["eb_d_pp", "eb_w_pp", "eb_afrrd", "eb_afrrg"],
     "en-rozl": ["en_d", "en_w", "balance"],
     "sk": ["sk_cost", "sk_d_fcst", "sk_d1_fcst"],
@@ -99,7 +99,7 @@ def _series(rep, date, fields, hourly=False):
 
 
 def rb_day(date):
-    doc = {"date": date, "src": "PSE: crb-rozl, crb-prog, eb-rozl, en-rozl, sk, cmbu-tu, mbu-tu, cmbp-tp, mbp-tp, zmb", "fetched_at": iso(now_local())}
+    doc = {"date": date, "src": "PSE: crb-rozl, price-fcst, eb-rozl, en-rozl, sk, cmbu-tu, mbu-tu, cmbp-tp, mbp-tp, zmb", "fetched_at": iso(now_local())}
     for rep, f in list(RB_FIELDS.items()) + list(RMB_FIELDS.items()):
         try:
             s = _series(rep, date, f)
@@ -142,14 +142,15 @@ def rb_offer_stack(date):
 
 def run_rb(dates, status, heavy):
     msgs, ok = [], True
-    for k in ("D-1", "D", "D+1"):
+    d2 = (dt.date.fromisoformat(dates["D"]) - dt.timedelta(days=2)).isoformat()
+    for date in (d2, dates["D-1"], dates["D"], dates["D+1"]):
         try:
-            doc = rb_day(dates[k])
+            doc = rb_day(date)
             if doc:
-                write(f"rb_{dates[k]}.json", doc)
+                write(f"rb_{date}.json", doc)
         except Exception as e:  # noqa: BLE001
             ok = False
-            msgs.append(f"rb {dates[k]}: {str(e)[:100]}")
+            msgs.append(f"rb {date}: {str(e)[:100]}")
     # stos ofert RB – ciężki raport, raz na godzinę; w pozostałych przebiegach przenosimy poprzedni odczyt
     name = f"rbstack_{dates['D']}.json"
     if heavy or now_local().minute < 15 or not read_prev(name):
@@ -308,7 +309,7 @@ def run_stats(dates, status, backfill_days=60):
     want = [(today - dt.timedelta(days=i)).isoformat() for i in range(1, backfill_days + 1)]
     # doba D-1 i D-2 odświeżane (dane rozliczeniowe RB i curtailment dochodzą z opóźnieniem)
     refresh = {dates["D-1"], (today - dt.timedelta(days=2)).isoformat()}
-    todo = [d for d in want if d not in by or d in refresh or not by[d].get("cen_avg")][:24]
+    todo = [d for d in want if d not in by or d in refresh][:30]
     msgs = []
 
     def job(d):
