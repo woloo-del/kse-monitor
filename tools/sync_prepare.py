@@ -57,7 +57,7 @@ def main(out):
 
     st = fetch("status.json")
     now = dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec="seconds")
-    patch = {"sources": {k: st[k] for k in ("pse", "nbp", "entsoe", "osd") if k in st},
+    patch = {"sources": {k: st[k] for k in ("pse", "nbp", "entsoe", "osd", "curves", "rb", "redoze", "stats", "grid") if k in st},
              "osd_detail": st.get("osd_detail", {}), "scraper_at": st.get("generated_at"), "last_run": now}
     put("status", patch, op="update")
 
