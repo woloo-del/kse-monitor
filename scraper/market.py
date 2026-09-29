@@ -67,7 +67,10 @@ def run_curves(dates, status):
         except Exception as e:  # noqa: BLE001
             ok = False
             msgs.append(f"{date}: {str(e)[:120]}")
-    status["curves"] = {"ok": ok, "at": iso(now_local()), "msg": "; ".join(msgs) or "krzywe TGE 15 min"} if (msgs or not prev_status) else {**prev_status, "at": iso(now_local())}
+    import os as _os
+    have = [dates[k] for k in ("D", "D+1") if _os.path.exists(_os.path.join(_os.environ.get("OUT_DIR", "out"), f"curves_{dates[k]}_b.json"))]
+    status["curves"] = {"ok": ok and bool(have), "at": iso(now_local()),
+                        "msg": ("krzywe TGE 15 min: " + ", ".join(have)) if have else ("; ".join(msgs) or "brak krzywych")}
 
 
 # ---------------------------------------------------------------- 2. rynek bilansujący
